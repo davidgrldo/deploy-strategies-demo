@@ -1,0 +1,49 @@
+# deploy/base/deployment-recreate.yaml — template Deployment untuk strategi
+# recreate. Identik dengan deployment.yaml KECUALI blok strategy: Recreate
+# mematikan semua pod lama dulu baru menyalakan pod baru → downtime nyata.
+# Itulah poin demo-nya; sisanya (probe, grace period, env) sama persis.
+#
+# Substitusi (lihat scripts/lib.sh: apply_workload):
+#   ${NAME} ${REPLICAS} ${REGISTRY} ${DIGEST}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${NAME}
+  labels:
+    app: ${NAME}
+    app.kubernetes.io/part-of: deploy-strategies-demo
+spec:
+  replicas: ${REPLICAS}
+  terminationGracePeriodSeconds: 30 # 5 + 20 = 25 < 30
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ${NAME}
+  template:
+    metadata:
+      labels:
+        app: ${NAME}
+        app.kubernetes.io/part-of: deploy-strategies-demo
+    spec:
+      containers:
+        - name: app
+          image: ${REGISTRY}/app@sha256:${DIGEST}
+          ports:
+            - containerPort: 8080
+          env:
+            # RESPONSE_DELAY_MS=300 (semua strategi, spec §4): latensi buatan
+            # supaya selalu ada request yang sedang berjalan saat pod dimatikan
+            # — tanpa ini celahnya terlalu singkat untuk tertangkap panel
+            - name: RESPONSE_DELAY_MS
+              value: "300"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            periodSeconds: 2

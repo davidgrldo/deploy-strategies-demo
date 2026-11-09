@@ -1,0 +1,22 @@
+# deploy/httproute-single.yaml — template HTTPRoute SATU backend (envsubst).
+# Dipakai strategi recreate dan rolling: hanya ada satu Deployment `app`,
+# jadi route-nya satu backend dengan weight penuh. Gateway API tidak
+# membolehkan dua backendRef identik, dan backend weight-0 yang tidak ada
+# Service-nya bikin route tidak sehat — maka template terpisah, bukan
+# httproute.yaml dengan weight 0.
+#
+# Substitusi (lihat scripts/lib.sh: set_route_single): ${BACKEND_1} ${WEIGHT_1}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app
+  labels:
+    app.kubernetes.io/part-of: deploy-strategies-demo
+spec:
+  parentRefs:
+    - name: demo
+  rules:
+    - backendRefs:
+        - name: ${BACKEND_1}
+          port: 80
+          weight: ${WEIGHT_1}
