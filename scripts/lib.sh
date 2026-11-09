@@ -181,3 +181,98 @@ get_active_slot() { # blue (default) atau green — slot yang sedang menerima tr
 set_active_slot() { # set_active_slot <blue|green>
   kubectl annotate --overwrite httproute app "active-slot=$1" >/dev/null
 }
+
+# --- Demo docker stop: naive vs graceful (§8, tanpa Kubernetes) -------------
+
+wait_http_ok() { # wait_http_ok <url> <timeout_s> — tunggu sampai menjawab 200
+  local deadline=$((SECONDS + $2))
+  until curl -sf -o /dev/null --max-time 2 "$1" 2>/dev/null; do
+    [ "${SECONDS}" -lt "${deadline}" ] || die "timeout menunggu $1"
+    sleep 0.5
+  done
+}
+
+# run_slow_leg <container> <stop_timeout_s> — nembak /slow, satu detik kemudian
+# docker stop container-nya, lalu tunggu request-nya selesai (atau putus).
+# Hasil via variabel LEG_CODE (http code), LEG_RC (exit curl), LEG_ERR
+# (pesan error curl), LEG_REQ_SECS (berapa detik request berjalan).
+run_slow_leg() {
+  local container="$1" stop_t="$2" cf ef rf tf cpid t0
+  cf="$(mktemp)"; ef="$(mktemp)"; rf="$(mktemp)"; tf="$(mktemp)"
+  t0="$(date +%s)"
+  (
+    curl -sS -m 20 -o /dev/null -w '%{http_code}' \
+      "http://localhost:${DEMO_SHUTDOWN_PORT:-18080}/slow" >"${cf}" 2>"${ef}"
+    echo "$?" >"${rf}"
+    date +%s >"${tf}"
+  ) &
+  cpid=$!
+  sleep 1 # request sudah mendarat dan sedang berjalan (sleep 3s di server)
+  docker stop -t "${stop_t}" "${container}" >/dev/null
+  wait "${cpid}" 2>/dev/null
+  LEG_CODE="$(cat "${cf}" 2>/dev/null)"
+  LEG_RC="$(cat "${rf}" 2>/dev/null)"
+  LEG_ERR="$(head -1 "${ef}" 2>/dev/null)"
+  LEG_REQ_SECS="$(( $(cat "${tf}" 2>/dev/null || echo "${t0}") - t0 ))"
+  rm -f "${cf}" "${ef}" "${rf}" "${tf}"
+}
+
+# demo_shutdown — perbandingan dua kaki (Docker saja, tanpa Kubernetes):
+#   kaki 1: container naive, request /slow ditembak, docker stop di tengah
+#           jalan → request PUTUS (curl: Empty reply / connection reset)
+#   kaki 2: container graceful, sama persis → request SELESAI 200 setelah
+#           ±3 detiknya, dan log memperlihatkan langkah shutdown 1–4
+demo_shutdown() {
+  need_cmd docker "Docker — instal dulu (satu-satunya prasyarat demo ini)"
+  local port="${DEMO_SHUTDOWN_PORT:-18080}"
+  local name_naive="demo-shutdown-naive" name_graceful="demo-shutdown-graceful"
+  trap "docker rm -f ${name_naive} ${name_graceful} >/dev/null 2>&1 || true" EXIT
+
+  stage "1/4" "Build dua image (naive & graceful)"
+  APP=naive build_image "demo-shutdown-naive"
+  APP=main build_image "demo-shutdown-graceful"
+  stage_done
+
+  stage "2/4" "Kaki 1 — naive: docker stop di tengah request /slow"
+  docker run -d --rm --name "${name_naive}" -p "${port}:8080" \
+    "${REGISTRY_HOST}/app:demo-shutdown-naive" >/dev/null
+  wait_http_ok "http://localhost:${port}/healthz" 30
+  run_slow_leg "${name_naive}" 10
+  local naive_line
+  if [ -n "${LEG_CODE:-}" ] && [ "${LEG_CODE}" != "000" ] && [ "${LEG_CODE}" != "" ]; then
+    naive_line="${LEG_CODE} setelah ${LEG_REQ_SECS}s (tidak putus? coba lagi)"
+  else
+    naive_line="${LEG_ERR:-request putus} setelah ${LEG_REQ_SECS}s"
+  fi
+  printf "  ${C_RED}${C_BOLD}naive    : %s${C_RESET}\n" "${naive_line}"
+  stage_done
+
+  stage "3/4" "Kaki 2 — graceful: request yang sama, dibiarkan selesai"
+  docker run -d --rm --name "${name_graceful}" -p "${port}:8080" \
+    "${REGISTRY_HOST}/app:demo-shutdown-graceful" >/dev/null
+  wait_http_ok "http://localhost:${port}/healthz" 30
+  run_slow_leg "${name_graceful}" 30
+  local graceful_line
+  if [ "${LEG_CODE:-}" = "200" ]; then
+    graceful_line="200 OK setelah ${LEG_REQ_SECS}s — request selesai"
+  else
+    graceful_line="GAGAL (code ${LEG_CODE:-000}) — padahal harusnya selesai"
+  fi
+  printf "  ${C_GREEN}${C_BOLD}graceful : %s${C_RESET}\n" "${graceful_line}"
+  echo "  langkah shutdown di log container:"
+  docker logs "${name_graceful}" 2>&1 | grep '\[shutdown\]' | sed 's/^/    /' || true
+  stage_done
+
+  stage "4/4" "Perbandingan"
+  printf "  %-8s : %s\n" "naive" "${naive_line}"
+  printf "  %-8s : %s\n" "graceful" "${graceful_line}"
+  echo "  Bedanya: naive mati seketika dan memutus request yang sedang berjalan;"
+  echo "  graceful menyelesaikannya dulu (lihat [shutdown] 1–4 di atas)."
+  stage_done
+  docker rm -f "${name_naive}" "${name_graceful}" >/dev/null 2>&1 || true
+}
+
+# Jalankan langsung untuk helper demo: ./scripts/lib.sh demo-shutdown
+if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "${1:-}" = "demo-shutdown" ]; then
+  demo_shutdown
+fi
