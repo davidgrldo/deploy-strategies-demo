@@ -59,6 +59,51 @@ release_rolling() {
   rollout_progress app
 }
 
+# release_bluegreen: deploy digest ke slot NON-AKTIF, tunggu semua pod-nya
+# siap, jeda SWITCH_PAUSE detik, lalu pindahkan 100% traffic seketika —
+# weight saja, pod lama tidak disentuh. Slot aktif diingat di annotation
+# HTTPRoute (active-slot), jadi pemanggilan berikutnya bergantian slot:
+# blue → green → blue → …
+release_bluegreen() {
+  local version="$1" digest="$2"
+  local active inactive
+  active="$(get_active_slot)"
+  if [ "${active}" = "blue" ]; then inactive="green"; else inactive="blue"; fi
+
+  echo "  slot aktif: ${active} — deploy ${version} ke slot non-aktif: ${inactive}"
+  set_image "app-${inactive}" "${digest}"
+  scale_workload "app-${inactive}" "${BG_REPLICAS:-3}"
+  wait_rollout "app-${inactive}"
+  printf "${C_CYAN}${C_BOLD}%s siap, belum terima traffic${C_RESET}\n" "${inactive}"
+
+  echo "  jeda ${SWITCH_PAUSE:-5}s (SWITCH_PAUSE) — masih sempat batalkan"
+  sleep "${SWITCH_PAUSE:-5}"
+
+  echo "  pindahkan traffic: ${active} 0 / ${inactive} 100"
+  set_weights "app-${active}" 0 "app-${inactive}" 100
+  printf "${C_BOLD}${C_YELLOW}🔀 SWITCH %s → %s${C_RESET}\n" "${active}" "${inactive}"
+  set_active_slot "${inactive}"
+  echo "  slot lama (${active}) dibiarkan hidup — sumber rollback instan"
+}
+
+# do_bluegreen_rollback: kembalikan traffic ke slot sebelumnya SEKETIKA —
+# operasi weight saja: tanpa test, tanpa build, tanpa deploy ulang.
+do_bluegreen_rollback() {
+  local active inactive
+  active="$(get_active_slot)"
+  if [ "${active}" = "blue" ]; then inactive="green"; else inactive="blue"; fi
+
+  echo "  slot aktif: ${active} — kembalikan traffic ke ${inactive}"
+  set_weights "app-${active}" 0 "app-${inactive}" 100
+  printf "${C_BOLD}${C_YELLOW}🔀 SWITCH %s → %s (rollback, seketika)${C_RESET}\n" "${active}" "${inactive}"
+  set_active_slot "${inactive}"
+}
+
+need_active_bluegreen() {
+  kubectl get httproute app >/dev/null 2>&1 \
+    || die "HTTPRoute 'app' belum ada — jalankan make reset S=bluegreen dulu"
+}
+
 # ===========================================================================
 # Pipeline utama
 # ===========================================================================
