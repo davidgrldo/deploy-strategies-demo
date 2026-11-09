@@ -1,0 +1,23 @@
+# deploy/gateway.yaml — GatewayClass + Gateway (Envoy Gateway).
+# Tidak ada route aplikasi di sini: HTTPRoute untuk app didefinisikan di
+# deploy/httproute.yaml (template). setup-cluster.sh mengekspos listener ini
+# ke host sebagai http://localhost:8080 lewat port mapping k3d.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: demo
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: demo
+  labels:
+    app.kubernetes.io/part-of: deploy-strategies-demo
+spec:
+  gatewayClassName: demo
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
