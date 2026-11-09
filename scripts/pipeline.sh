@@ -104,6 +104,119 @@ need_active_bluegreen() {
     || die "HTTPRoute 'app' belum ada — jalankan make reset S=bluegreen dulu"
 }
 
+# release_canary: versi baru dapat persentase kecil traffic dulu, lalu
+# pipeline SENDIRI yang menganalisis (§6 — sengaja tanpa alat metrik
+# eksternal): kirim request ke /version lewat gateway, hitung HANYA respons
+# yang X-Version-nya sama dengan versi canary, lalu putuskan promote atau
+# rollback otomatis. Health check tidak akan menangkap versi rusak —
+# /healthz lolos walau user kena 500 — jadi traffic-lah buktinya.
+release_canary() {
+  local version="$1" digest="$2"
+  local canary_weight="${CANARY_WEIGHT:-10}" observe="${OBSERVE_SECONDS:-120}"
+  local max_rate="${MAX_ERROR_RATE:-0.01}" min_samples="${MIN_SAMPLES:-20}"
+
+  echo "  deploy ${version} ke app-canary (${canary_weight}% traffic setelah siap)"
+  set_image app-canary "${digest}"
+  scale_workload app-canary 1
+  if [ -n "${FAIL_RATE:-}" ]; then
+    echo "  FAIL_RATE=${FAIL_RATE} diteruskan ke workload canary (simulasi versi rusak)"
+    kubectl set env deployment/app-canary "FAIL_RATE=${FAIL_RATE}"
+  else
+    kubectl set env deployment/app-canary FAIL_RATE- >/dev/null 2>&1 || true
+  fi
+  wait_rollout app-canary
+
+  echo "  set weight: app-stable $((100 - canary_weight)) / app-canary ${canary_weight}"
+  set_weights app-stable "$((100 - canary_weight))" app-canary "${canary_weight}"
+
+  canary_analyze "${version}" "${observe}" "${max_rate}" "${min_samples}"
+  local samples="${CANARY_SAMPLES}" errors="${CANARY_ERRORS}"
+
+  if [ "${samples}" -ge "${min_samples}" ] \
+    && [ "$(awk -v e="${errors}" -v s="${samples}" -v m="${max_rate}" 'BEGIN{print (e/s<=m)?1:0}')" = "1" ]; then
+    # promote: update app-stable ke DIGEST YANG SAMA — build cukup sekali
+    echo "  promote: app-stable → digest yang sama (tanpa build ulang)"
+    set_image app-stable "${digest}"
+    wait_rollout app-stable
+    set_weights app-stable 100 app-canary 0
+    scale_workload app-canary 0
+    printf "${C_GREEN}${C_BOLD}✅ PROMOTED %s → 100%%${C_RESET}\n" "${version}"
+  else
+    set_weights app-stable 100 app-canary 0
+    scale_workload app-canary 0
+    printf "${C_BOLD}${C_RED}❌ ROLLBACK: error rate %s%% > %s%%${C_RESET}\n" \
+      "$(awk -v e="${errors}" -v s="${samples}" 'BEGIN{printf "%.1f", (s>0)?(e*100/s):0}')" \
+      "$(awk -v m="${max_rate}" 'BEGIN{printf "%g", m*100}')"
+    exit 1
+  fi
+}
+
+# canary_analyze <version> <observe_s> <max_rate> <min_samples>
+# Loop analisis: beberapa pengirim paralel menulis "code versi" per request;
+# kolektor menghitung sampel & error versi canary, mencetak progres tiap
+# ±10 detik ("canary: 42 req, 1 error (2.4%)") dan bisa berhenti lebih awal
+# begitu jelas gagal. Hasil lewat CANARY_SAMPLES / CANARY_ERRORS.
+canary_analyze() {
+  local version="$1" observe="$2" max_rate="$3" min_samples="$4"
+  local out stopfile code ver pids="" i elapsed
+  out="$(mktemp /tmp/canary.XXXXXX)"
+  stopfile="${out}.stop"
+  # pengirim berhenti saat file stop muncul — termasuk saat pipeline exit
+  trap 's="${stopfile:-}"; [ -n "${s}" ] && touch "${s}" 2>/dev/null' RETURN INT TERM EXIT
+
+  # pengirim traffic paralel — pipeline-nya sendiri load generator + analis
+  for i in 1 2 3 4; do
+    (
+      while [ ! -f "${stopfile}" ]; do
+        hdrs="$(curl -sS -m 2 -D - -o /dev/null -w '%{http_code}' "${GATEWAY_URL}/version" 2>/dev/null)" || hdrs=""
+        if [ -n "${hdrs}" ]; then
+          code="${hdrs##*$'\n'}"
+          ver="$(printf '%s' "${hdrs}" | tr -d '\r' | sed -n 's/^[Xx]-[Vv]ersion:[[:space:]]*//p' | head -1)"
+          printf '%s %s\n' "${code}" "${ver}" >> "${out}"
+        fi
+        sleep 0.1
+      done
+    ) &
+    pids="${pids} $!"
+  done
+
+  local t0="${SECONDS}" samples=0 errors=0 last_print="${SECONDS}"
+  # window minimal observe_s; kalau sampel belum cukup, lanjut sampai hard
+  # cap 2× observe_s — MIN_SAMPLES itu syarat keputusan, bukan formalitas
+  while :; do
+    sleep 1
+    samples="$(awk -v v="${version}" '$2==v' "${out}" | wc -l | tr -d ' ')"
+    errors="$(awk -v v="${version}" '$2==v && $1 !~ /^2/' "${out}" | wc -l | tr -d ' ')"
+    if [ $((SECONDS - last_print)) -ge 10 ]; then
+      printf "  ${C_GREY}canary: %s req, %s error (%s%%)${C_RESET}\n" "${samples}" "${errors}" \
+        "$(awk -v e="${errors}" -v s="${samples}" 'BEGIN{printf "%.1f", (s>0)?(e*100/s):0}')"
+      last_print="${SECONDS}"
+    fi
+    # berhenti lebih awal begitu jelas gagal: sampel cukup & di atas ambang,
+    # atau bencana (≥10 sampel, error rate > 5× ambang)
+    if [ "${samples}" -ge "${min_samples}" ] \
+      && [ "$(awk -v e="${errors}" -v s="${samples}" -v m="${max_rate}" 'BEGIN{print (e/s>m)?1:0}')" = "1" ]; then
+      break
+    fi
+    if [ "${samples}" -ge 10 ] \
+      && [ "$(awk -v e="${errors}" -v s="${samples}" -v m="${max_rate}" 'BEGIN{print (e/s>m*5)?1:0}')" = "1" ]; then
+      break
+    fi
+    elapsed=$((SECONDS - t0))
+    [ "${elapsed}" -ge "${observe}" ] && [ "${samples}" -ge "${min_samples}" ] && break
+    [ "${elapsed}" -ge "$((observe * 2))" ] && break
+  done
+
+  printf "  ${C_GREY}canary: %s req, %s error (%s%%) — window selesai${C_RESET}\n" "${samples}" "${errors}" \
+    "$(awk -v e="${errors}" -v s="${samples}" 'BEGIN{printf "%.1f", (s>0)?(e*100/s):0}')"
+
+  touch "${stopfile}"
+  for i in ${pids}; do wait "${i}" 2>/dev/null; done
+  rm -f "${out}" "${stopfile}"
+  CANARY_SAMPLES="${samples}"
+  CANARY_ERRORS="${errors}"
+}
+
 # ===========================================================================
 # Pipeline utama
 # ===========================================================================
