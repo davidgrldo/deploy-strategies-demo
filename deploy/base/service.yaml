@@ -1,0 +1,19 @@
+# deploy/base/service.yaml — template Service generik (envsubst).
+# Port 80 (dipakai HTTPRoute) meneruskan ke containerPort 8080
+# (PORT default aplikasi Go).
+#
+# Substitusi: ${NAME}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${NAME}
+  labels:
+    app: ${NAME}
+    app.kubernetes.io/part-of: deploy-strategies-demo
+spec:
+  selector:
+    app: ${NAME}
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
