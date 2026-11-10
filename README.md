@@ -68,7 +68,80 @@ sampel, makin cepat versi rusak ketahuan.
 
 Script di repo ini bash, jalan di **Linux, macOS, atau Windows lewat WSL2**.
 
+Di Windows, jalankan perintah dari distro Ubuntu WSL2 dan aktifkan distro
+**Ubuntu** di Docker Desktop → Settings → Resources → WSL Integration.
+Pastikan `docker info` dari Ubuntu menampilkan bagian Server tanpa error.
+Tool Linux (`go`, `k3d`, `kubectl`, `make`, dan `envsubst`) harus tersedia
+di dalam Ubuntu; instalasi tool Windows saja belum tentu cukup.
+Folder repo ini dapat dibuka dari WSL dengan
+`cd /mnt/d/sandbox/deploy-strategies-demo`.
+
+Pipeline menjalankan test dengan `CGO_ENABLED=0`, sesuai build Docker.
+Untuk test manual tanpa dependensi compiler/header C: `CGO_ENABLED=0 go test ./...`.
+
 ## Mulai cepat
+
+### Dashboard interaktif
+
+```bash
+make cluster
+make dashboard
+```
+
+Buka **http://localhost:9090** dari browser Windows. Biarkan terminal
+`make dashboard` tetap berjalan. Tidak perlu Node.js, npm, atau `make watch`:
+dashboard memakai Go stdlib dan membawa enam pengirim request sendiri.
+
+![Dashboard Deployment Lab](docs/dashboard.png)
+
+- Pilih **Recreate**, **Rolling**, **Blue-green**, atau **Canary**, lalu klik
+  **Jalankan demo**. Baseline v1 disiapkan otomatis oleh target Makefile.
+- Diagram memperlihatkan Pod yang ready, mulai, atau terminating, beserta
+  weight traffic HTTPRoute. Versi Pod dibaca lewat digest image lokal v1/v2;
+  versi yang belum bisa dikenali ditampilkan sebagai `—`.
+- Grafik dan metrik berasal dari request HTTP sungguhan. Animasi alur
+  menggambarkan route yang dikonfigurasi, bukan tracing setiap request ke Pod.
+- Pilih **Tanpa graceful** untuk pembanding rolling, atau **Versi rusak**
+  untuk mengamati rollback canary otomatis. Blue-green menyediakan tombol
+  **Rollback** ketika kedua slot siap.
+- **Presentasi** menyembunyikan navigasi dan log untuk layar proyektor;
+  tekan Escape untuk keluar. Tombol **◐** mengganti tema terang/gelap.
+
+Dashboard hanya mendengarkan di loopback. Ia membaca context `k3d-demo`
+dan menolak menjalankan pipeline jika context aktif kubectl berbeda.
+Satu demo berjalan dalam satu waktu. Metrik dimulai ulang saat fase
+**Release**, sehingga error saat reset baseline tidak dihitung sebagai
+hasil release. Sebelum fase tersebut, metrik merupakan pengamatan live.
+Data cluster diperbarui sekitar dua detik; stream browser setiap 0,5 detik.
+Canary sehat memakai window observasi bawaan 120 detik.
+
+Panel **Observasi pipeline** menampilkan sampel khusus canary, error rate,
+ambang, dan waktu observasi yang dikirim oleh pipeline. Angka ini terpisah
+dari sampler dashboard yang mengukur seluruh traffic. Rollback membedakan
+**error melewati ambang** dan **bukti belum cukup**; sampel yang kurang tidak
+berarti versi baru terbukti rusak. Traffic mix hanya menghitung respons
+berhasil, sedangkan weight route menunjukkan konfigurasi pembagian traffic.
+
+Bagian konteks membedakan pilihan strategi, demo berjalan/terakhir, dan
+cluster saat ini. Memilih menu tidak menjalankan deployment. Urutan release
+menunjukkan tahap memasang versi baru, readiness, pengalihan traffic,
+observasi, dan hasil sesuai strategi. Estimasi jeda request adalah rentetan
+respons gagal sampai ada respons berhasil, bukan ukuran downtime global.
+
+Tes keputusan canary dan penerimaan event dashboard:
+
+```bash
+bash scripts/test-canary-decision.sh
+CGO_ENABLED=0 go test ./cmd/dashboard
+```
+
+Konfigurasi opsional:
+
+```bash
+DASHBOARD_ADDR=127.0.0.1:9091 GATEWAY_URL=http://localhost:8081 make dashboard
+```
+
+### Demo lewat terminal
 
 ```bash
 make cluster          # sekali: k3d + registry lokal + Envoy Gateway (idempoten)
@@ -92,6 +165,20 @@ mau: `make rolling VERSION=v3`.
 
 Kondisi awal suatu strategi juga bisa disiapkan manual: `make reset S=canary`.
 Bersih-bersih: `make clean` (hapus cluster).
+
+`make cluster` hanya menyiapkan infrastruktur. Endpoint
+`http://localhost:8080/version` baru tersedia setelah `make reset S=rolling`
+atau salah satu target demo berhasil; HTTP 404 sebelum itu normal.
+
+Untuk menguji seluruh skenario pada cluster lokal:
+
+```bash
+bash scripts/verify-demo.sh
+```
+
+Pengujian ini me-reset workload demo, memeriksa promote/rollback dan panel
+traffic, serta menyimpan log setiap skenario di direktori `/tmp` yang
+dicetak saat mulai. Di akhir, aplikasi ditinggalkan pada rolling versi v2.
 
 ## Kenapa kodenya begini?
 

@@ -8,13 +8,16 @@
 S ?=
 VERSION ?= v2
 
-.PHONY: cluster watch reset recreate rolling rolling-naive bluegreen bluegreen-rollback canary canary-bad demo-shutdown clean
+.PHONY: cluster dashboard watch reset recreate rolling rolling-naive bluegreen bluegreen-rollback canary canary-bad demo-shutdown clean
 
 cluster: ## siapkan k3d + registry lokal + Envoy Gateway (idempoten)
 	./scripts/setup-cluster.sh
 
 watch: ## panel traffic live (terminal kiri)
 	./scripts/watch.sh
+
+dashboard: ## dashboard interaktif: http://localhost:9090 (jalankan dari WSL/Linux)
+	CGO_ENABLED=0 go run ./cmd/dashboard
 
 reset: ## kembalikan cluster ke kondisi awal v1 strategi tsb: make reset S=canary
 	./scripts/reset.sh $(S)

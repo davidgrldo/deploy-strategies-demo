@@ -1,0 +1,345 @@
+/* Theme colors live on <html>, where the page background and inherited text
+   are painted. Keep this after layout styles so component colors agree. */
+:root {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+:root.dark {
+  color-scheme: dark;
+  --bg: #141a16;
+  --panel: #1d261f;
+  --ink: #edf4e9;
+  --muted: #a6b49d;
+  --line: #354132;
+  --soft: #253127;
+  --sidebar: #111713;
+  --green: #b2d88a;
+  --v1: #b2bbdb;
+  --v2: #b4d98e;
+  --purple: #b9b6ec;
+  --error: #efa18e;
+  --surface-inset: #18211b;
+  --surface-raised: #253127;
+  --text-secondary: #bac7b2;
+}
+
+.dark .hero-description,
+.dark .eyebrow,
+.dark .stat-label,
+.dark .stat-value small,
+.dark .stat-icon,
+.dark .panel-kicker,
+.dark .variant-label,
+.dark .topology-context,
+.dark .chart-axis,
+.dark .chart-footer,
+.dark footer,
+.dark .log-toolbar,
+.dark .request-head {
+  color: var(--muted);
+}
+
+.dark .breadcrumb span,
+.dark .mix-divider {
+  color: #a0af97;
+}
+
+.dark .side-label,
+.dark .side-label span,
+.dark .nav-number {
+  color: #9eb08f;
+}
+
+.dark .nav-copy small,
+.dark .sidebar-note p {
+  color: #afbea5;
+}
+
+.dark .sidebar-bottom,
+.dark .icon-button {
+  color: #c1d4ae;
+}
+
+.dark .tiny-orbit {
+  color: #9bb686;
+}
+
+.dark .strategy-number {
+  border-color: var(--line);
+}
+
+.dark select,
+.dark .secondary-button {
+  background: var(--surface-raised);
+  border-color: #52624a;
+  color: var(--ink);
+}
+
+.dark .run-strip,
+.dark .segmented {
+  background: var(--surface-inset);
+  border-color: var(--line);
+}
+
+.dark .run-strip li {
+  color: var(--muted);
+}
+
+.dark .run-strip li.done {
+  color: #bcdf97;
+}
+
+.dark .run-strip li.current {
+  color: var(--ink);
+}
+
+.dark .run-strip li:not(:last-child)::after,
+.dark .run-strip li::before {
+  background: #607055;
+}
+
+.dark .run-strip li.done::before,
+.dark .run-strip li.current::before {
+  background: var(--lime);
+}
+
+.dark .run-strip li.current::before {
+  box-shadow: 0 0 0 3px #91b46a30;
+}
+
+.dark .version-v1,
+.dark .request-version {
+  color: var(--v1);
+}
+
+.dark .version-v2,
+.dark .request-version.v2 {
+  color: var(--v2);
+}
+
+.dark .mix-bar {
+  background: var(--surface-inset);
+}
+
+.dark .live-badge {
+  background: #283a21;
+  border-color: #49623a;
+  color: #c5e5a5;
+}
+
+.dark .network {
+  background-image: radial-gradient(#a4b99525 .65px, transparent .65px);
+}
+
+.dark .network-node,
+.dark .service {
+  background: var(--surface-raised);
+  border-color: #506047;
+  color: var(--ink);
+}
+
+.dark .network-node.gateway {
+  background: #283922;
+  border-color: #6c8756;
+}
+
+.dark .network-node.gateway.disconnected {
+  border-color: #cd8d7c;
+}
+
+.dark .node-glyph,
+.dark .network-node.gateway .node-glyph {
+  color: #bbd69f;
+}
+
+.dark .network-node small,
+.dark .service-weight small {
+  color: var(--text-secondary);
+}
+
+.dark .lane.idle .service {
+  opacity: 1;
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+}
+
+.dark .network-node.client::after,
+.dark .network-node.gateway::after,
+.dark .network-lanes::before,
+.dark .lane::before,
+.dark .service::after {
+  background: #7c9068;
+}
+
+.dark .lane.idle::before,
+.dark .lane.idle .service::after {
+  background: #526247;
+}
+
+.dark .pod,
+.dark .pod.v1 {
+  background: #272e40;
+  border-color: #56627c;
+  color: #e0e7ff;
+}
+
+.dark .pod.v2 {
+  background: #2b3c25;
+  border-color: #617d48;
+  color: #e0f0cd;
+}
+
+.dark .pod.unknown,
+.dark .pod.pending {
+  background: #333a29;
+  border-color: #6a7856;
+  color: #e0e9d1;
+}
+
+.dark .pod.terminating {
+  opacity: 1;
+  background: #3b3222;
+  border-color: #967a4b;
+  color: #f0d9aa;
+}
+
+.dark .pod small,
+.dark .pod-icon {
+  color: #bdc9df;
+}
+
+.dark .pod.v2 small,
+.dark .pod.v2 .pod-icon {
+  color: #c1d9ac;
+}
+
+.dark .pod.pending small,
+.dark .pod.unknown small {
+  color: #c7d2b3;
+}
+
+.dark .pod.terminating small,
+.dark .pod.terminating .pod-icon {
+  color: #e2c695;
+}
+
+.dark .pod-state::before {
+  background: #c2d8aa;
+}
+
+.dark .pod.terminating .pod-state::before {
+  background: #e5c58b;
+}
+
+.dark .scaled-zero {
+  border-color: #536449;
+  color: var(--text-secondary);
+}
+
+.dark .narration,
+.dark .lesson {
+  background: #263222;
+  border-color: #3f5134;
+}
+
+.dark .narration p,
+.dark .lesson > p,
+.dark .lesson-takeaway p,
+.dark .lesson-takeaway > span,
+.dark .narration-icon,
+.dark .lesson-arrow {
+  color: #c0cdb3;
+}
+
+.dark .lesson-step {
+  background: #2d3b26;
+  border-color: #586b46;
+  color: #cfdfbc;
+}
+
+.dark .chart {
+  border-color: var(--line);
+  background: repeating-linear-gradient(to top, transparent 0, transparent calc(33.333% - 1px), #3c4936 calc(33.333% - 1px), #3c4936 33.333%);
+}
+
+.dark .chart-rate,
+.dark .chart-footer span:first-child {
+  color: #c3d8ab;
+}
+
+.dark .segmented button {
+  color: var(--text-secondary);
+}
+
+.dark .segmented button[aria-selected=true] {
+  background: #35452b;
+  color: var(--ink);
+}
+
+.dark .segmented button span {
+  background: #40552e;
+  color: #e1f2ca;
+}
+
+.dark .request-head,
+.dark .log-toolbar {
+  background: var(--surface-inset);
+}
+
+.dark .request-row {
+  border-color: #303e2b;
+  color: var(--text-secondary);
+}
+
+.dark .request-row > span:last-child {
+  color: var(--text-secondary);
+}
+
+.dark .http-status {
+  background: #2e4223;
+  color: #c5e5a5;
+}
+
+.dark .http-status.bad {
+  background: #4b3028;
+  color: #ffc1af;
+}
+
+.dark .logs {
+  background: #111a14;
+  color: #cad8bc;
+}
+
+.dark .log-time {
+  color: #a2b490;
+}
+
+.dark .log-error {
+  color: #ffb5a2;
+}
+
+.dark .log-success {
+  color: #cceca6;
+}
+
+.dark .empty-state {
+  color: var(--text-secondary);
+}
+
+.dark .alert {
+  background: #3c3123;
+  border-color: #8f734e;
+  color: #f3d2a4;
+}
+
+.dark .toast {
+  background: #304328;
+  color: #eef7e4;
+  border: 1px solid #647d50;
+}

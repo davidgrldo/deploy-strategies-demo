@@ -51,7 +51,7 @@ else
     --port "${HOST_PORT}:80@loadbalancer" \
     --k3s-arg "--disable=traefik@server:0"
 fi
-k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge --kubeconfig-switch-context
+k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge-default --kubeconfig-switch-context
 
 # --- 3/5 Envoy Gateway -------------------------------------------------------
 stage "3/5" "Envoy Gateway ${ENVOY_GATEWAY_VERSION} (CRD Gateway API v1 ikut serta)"
@@ -73,7 +73,12 @@ kubectl wait --for=condition=programmed gateway/demo --timeout=300s
 # --- 5/5 Tunggu gateway terjangkau dari host ---------------------------------
 stage "5/5" "Gateway di http://localhost:${HOST_PORT}"
 echo "… menunggu service LoadBalancer Envoy muncul"
-until kubectl get service -l gateway.envoyproxy.io/owning-gateway-name=demo -o name 2>/dev/null | grep -q service; do
+deadline=$((SECONDS + 120))
+# Envoy membuat Service di namespace controller, bukan namespace Gateway.
+until kubectl get service -A -l gateway.envoyproxy.io/owning-gateway-name=demo,gateway.envoyproxy.io/owning-gateway-namespace=default -o name 2>/dev/null | grep -q service; do
+  if [ "${SECONDS}" -ge "${deadline}" ]; then
+    die "service Envoy belum muncul setelah 120s — cek: kubectl get services -A"
+  fi
   sleep 2
 done
 deadline=$((SECONDS + 120))
