@@ -64,9 +64,9 @@ sampel, makin cepat versi rusak ketahuan.
 | k3d | `k3d version` | K3s dalam Docker |
 | kubectl | `kubectl version --client` | |
 | Go 1.22+ | `go version` | untuk `go test` dan build lokal |
+| envsubst | `envsubst --version` | bagian dari gettext; macOS: `brew install gettext` |
 
 Script di repo ini bash, jalan di **Linux, macOS, atau Windows lewat WSL2**.
-`envsubst` biasanya sudah ikut gettext (Linux/macOS umumnya tersedia).
 
 ## Mulai cepat
 
@@ -155,9 +155,9 @@ deploy/                 manifest + template (lihat deploy/README.md)
   Ulangi `make cluster` (idempoten) kalau koneksi tadi putus.
 - **Panel semua ERR setelah reset** — tunggu beberapa detik; `reset.sh`
   menunggu pod v1 siap, tapi Envoy butuh sejenak mengenali endpoint baru.
-- **`canary` berakhir ROLLBACK padahal versinya sehat** — kena jam MIN_SAMPLES
-  dengan window pendek; naikkan `OBSERVE_SECONDS` atau turunkan
-  `MIN_SAMPLES` (semua knob ada di env, default di `scripts/pipeline.sh`).
+- **`canary` berakhir ROLLBACK padahal versinya sehat** — sampel canary belum
+  mencapai MIN_SAMPLES dalam window yang pendek; naikkan `OBSERVE_SECONDS` atau
+  turunkan `MIN_SAMPLES` (semua knob ada di env, default di `scripts/pipeline.sh`).
 - **Mau mulai dari nol** — `make clean && make cluster`.
 
 ## Kredit & lisensi

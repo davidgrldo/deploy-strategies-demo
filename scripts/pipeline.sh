@@ -34,6 +34,7 @@ usage() {
 }
 
 need_cmd kubectl "kubectl — jalankan make cluster dulu"
+need_cmd envsubst "envsubst (bagian dari gettext; macOS: brew install gettext)"
 
 # ===========================================================================
 # Tahap release per strategi — dipanggil tahap 4/5. Argumen: versi, digest.
