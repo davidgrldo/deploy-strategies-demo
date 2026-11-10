@@ -138,6 +138,13 @@ scripts/watch.sh        panel traffic live
 deploy/                 manifest + template (lihat deploy/README.md)
 ```
 
+## Dokumen
+
+- [`docs/demo-strategies.md`](docs/demo-strategies.md) — spesifikasi awal
+  repo ini (requirement source-of-truth saat dibangun).
+- [`docs/tech_spec.md`](docs/tech_spec.md) — tech spec hasil pipeline
+  vibe-req → vibe-coding yang menghasilkan kode di repo ini.
+
 ## Troubleshooting singkat
 
 - **Port 8080 dipakai** (`address already in use`) — matikan yang memakai
