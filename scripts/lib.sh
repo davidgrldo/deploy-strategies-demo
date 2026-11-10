@@ -60,20 +60,28 @@ build_image() {
     -t "${REGISTRY_HOST}/app:${version}" .)
 }
 
-# push_image <version> — push ke registry lokal; output-nya DIGEST.
-# Mulai sini hanya digest yang dipakai (tidak ada referensi tag lagi).
+# push_image <version> — push ke registry lokal; output-nya DIGEST dalam
+# bentuk HEX MURNI (64 karakter, TANPA prefix "sha256:"). Semua pemakai
+# menambahkan prefix-nya sendiri (template ${REGISTRY}/app@sha256:${DIGEST},
+# cluster_image_ref, cetakan pipeline/reset) — prefix di sini akan
+# menghasilkan referensi ganda "sha256:sha256:".
 push_image() {
   local version="$1" digest
   docker push "${REGISTRY_HOST}/app:${version}" 2>&1 | tee /dev/stderr | \
-    sed -n 's/.*digest: \(sha256:[a-f0-9]\{64\}\).*/\1/p' | head -1 > /tmp/.demo-digest
+    sed -n 's/.*digest: sha256:\([a-f0-9]\{64\}\).*/\1/p' | head -1 > /tmp/.demo-digest
   digest="$(cat /tmp/.demo-digest)"
+  rm -f /tmp/.demo-digest
   if [ -z "${digest}" ]; then
     # fallback: tanya langsung ke docker setelah push
     digest="$(docker image inspect "${REGISTRY_HOST}/app:${version}" \
-      --format '{{index .RepoDigests 0}}' | sed 's/.*@//')"
+      --format '{{index .RepoDigests 0}}' | sed 's/.*@sha256://')"
   fi
-  [ -n "${digest}" ] || die "gagal menangkap digest dari docker push"
-  rm -f /tmp/.demo-digest
+  # validasi: harus hex 64 karakter tanpa prefix. Referensi ganda
+  # "sha256:sha256:" ditolak cluster (InvalidImageName) dan semua strategi
+  # macet di rollout — lebih baik gagal cepat di sini dengan pesan jelas.
+  if ! [[ "${digest}" =~ ^[a-f0-9]{64}$ ]]; then
+    die "digest tidak valid (harap 64 karakter hex tanpa prefix 'sha256:'): '${digest}'"
+  fi
   echo "${digest}"
 }
 
