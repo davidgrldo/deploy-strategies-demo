@@ -29,6 +29,7 @@ esac
 
 need_cmd kubectl "kubectl — jalankan make cluster dulu"
 need_cmd envsubst "envsubst (bagian dari gettext; macOS: brew install gettext)"
+need_cmd docker "Docker — instal dan jalankan daemon-nya dulu"
 
 # --- 1/3 Build & push v1 (jalur build bersama) ------------------------------
 stage "1/3" "Test & build v1 (${APP:-main}) via jalur build bersama"

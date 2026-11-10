@@ -89,13 +89,22 @@ push_image() {
 # Jalur yang sama dipakai pipeline (tahap 1–3) dan reset (image v1 awal),
 # jadi image awal pun ter-pin digest seperti semua image berikutnya.
 # stdout HANYA nilai kembalian (digest) — log/progres ke stderr, karena
-# pemanggil menangkap lewat ":$(...)"; output go test / docker build
+# pemanggil menangkap lewat "$(...)"; output go test / docker build
 # yang ikut ke stdout merusak hasil tangkapan itu.
+#
+# CATATAN PENTING soal error: "set -e" TIDAK berlaku di dalam "$(...)"
+# (bash hanya mewarisinya lewat 'shopt -s inherit_errexit', yang tidak
+# tersedia di bash 3.2 bawaan macOS) — jadi setiap langkah diperiksa
+# eksplisit dengan "|| return 1". Pemanggil yang menangkap hasilnya
+# (mis. DIGEST="$(build_and_push v1)" di reset.sh) ikut gagal, lalu
+# set -euo pipefail di pemanggil menghentikan script SEBELUM tahap
+# kubectl delete/apply menyentuh cluster.
 build_and_push() {
   local version="$1" digest
-  go_test >&2
-  build_image "${version}" >&2
-  digest="$(push_image "${version}")"
+  go_test >&2 || return 1
+  build_image "${version}" >&2 || return 1
+  digest="$(push_image "${version}")" || return 1
+  [ -n "${digest}" ] || return 1
   echo "${digest}"
 }
 
@@ -184,8 +193,11 @@ set_weights() {
 
 get_active_slot() { # blue (default) atau green — slot yang sedang menerima traffic
   local slot
+  # set -e tidak berlaku di dalam "$( )" — gagal membaca slot tidak boleh
+  # diam-diam dianggap "blue": kalau slot aslinya green, switch bisa
+  # salah arah. Gagal baca = gagal fungsi (pemanggil berhenti via set -e).
   slot="$(kubectl get httproute app \
-    -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "active-slot"}}{{end}}' 2>/dev/null)"
+    -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "active-slot"}}{{end}}' 2>/dev/null)" || return 1
   echo "${slot:-blue}"
 }
 
