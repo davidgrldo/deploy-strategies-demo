@@ -86,7 +86,7 @@ done
 stage_done
 
 echo ""
-echo "${C_GREEN}${C_BOLD}✅ Cluster siap.${C_RESET}"
+printf "${C_GREEN}${C_BOLD}✅ Cluster siap.${C_RESET}\n"
 echo "   Gateway   : http://localhost:${HOST_PORT} (menjawab ${code} — tanpa route, 404 itu normal)"
 echo "   Registry  : localhost:${REGISTRY_PORT} (host) = ${REGISTRY_NAME}:${REGISTRY_PORT} (dalam cluster)"
-echo "   Langkah 2 : buka dua terminal — ${C_CYAN}make watch${C_RESET} dan ${C_CYAN}make <strategi>${C_RESET}"
+printf "   Langkah 2 : buka dua terminal — ${C_CYAN}make watch${C_RESET} dan ${C_CYAN}make <strategi>${C_RESET}\n"

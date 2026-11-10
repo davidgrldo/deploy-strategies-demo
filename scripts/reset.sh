@@ -78,4 +78,4 @@ stage_done
 echo ""
 printf "${C_GREEN}${C_BOLD}✅ Reset %s siap — v1 aktif (digest %.12s…)${C_RESET}\n" \
   "${STRATEGY}" "${DIGEST}"
-echo "   Jalankan ${C_CYAN}make watch${C_RESET} di terminal lain, lalu ${C_CYAN}./scripts/pipeline.sh ${STRATEGY}${C_RESET}"
+printf "   Jalankan ${C_CYAN}make watch${C_RESET} di terminal lain, lalu ${C_CYAN}./scripts/pipeline.sh %s${C_RESET}\n" "${STRATEGY}"
