@@ -88,10 +88,13 @@ push_image() {
 # build_and_push <version> — test → build sekali → push → digest.
 # Jalur yang sama dipakai pipeline (tahap 1–3) dan reset (image v1 awal),
 # jadi image awal pun ter-pin digest seperti semua image berikutnya.
+# stdout HANYA nilai kembalian (digest) — log/progres ke stderr, karena
+# pemanggil menangkap lewat ":$(...)"; output go test / docker build
+# yang ikut ke stdout merusak hasil tangkapan itu.
 build_and_push() {
   local version="$1" digest
-  go_test
-  build_image "${version}"
+  go_test >&2
+  build_image "${version}" >&2
   digest="$(push_image "${version}")"
   echo "${digest}"
 }
