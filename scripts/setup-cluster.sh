@@ -55,7 +55,12 @@ k3d kubeconfig merge "${CLUSTER_NAME}" --kubeconfig-merge --kubeconfig-switch-co
 
 # --- 3/5 Envoy Gateway -------------------------------------------------------
 stage "3/5" "Envoy Gateway ${ENVOY_GATEWAY_VERSION} (CRD Gateway API v1 ikut serta)"
-kubectl apply -f "https://github.com/envoyproxy/gateway/releases/download/${ENVOY_GATEWAY_VERSION}/install.yaml"
+# --server-side: install.yaml Envoy Gateway berisi CRD besar; client-side
+# apply sering gagal dengan "metadata.annotations: Too long: must have at
+# most 262144 bytes" (annotation last-applied-configuration melebihi batas).
+# Dokumentasi resmi Envoy Gateway memakai server-side apply.
+# --force-conflicts: idempoten saat dijalankan ulang (field manager sama).
+kubectl apply --server-side --force-conflicts -f "https://github.com/envoyproxy/gateway/releases/download/${ENVOY_GATEWAY_VERSION}/install.yaml"
 echo "… menunggu controller Envoy Gateway siap"
 kubectl -n envoy-gateway-system wait --for=condition=available deployment --all --timeout=300s
 
@@ -81,7 +86,7 @@ done
 stage_done
 
 echo ""
-echo "${C_GREEN}${C_BOLD}✅ Cluster siap.${C_RESET}"
+printf "${C_GREEN}${C_BOLD}✅ Cluster siap.${C_RESET}\n"
 echo "   Gateway   : http://localhost:${HOST_PORT} (menjawab ${code} — tanpa route, 404 itu normal)"
 echo "   Registry  : localhost:${REGISTRY_PORT} (host) = ${REGISTRY_NAME}:${REGISTRY_PORT} (dalam cluster)"
-echo "   Langkah 2 : buka dua terminal — ${C_CYAN}make watch${C_RESET} dan ${C_CYAN}make <strategi>${C_RESET}"
+printf "   Langkah 2 : buka dua terminal — ${C_CYAN}make watch${C_RESET} dan ${C_CYAN}make <strategi>${C_RESET}\n"
