@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101311">
+  <title>Deployment Lab — Deploy Tanpa Deg-degan</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/process.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Deployment Lab beranda"><span class="brand-icon">↗</span><span>deployment<span class="brand-lab">lab.</span></span></a>
+    <div class="side-label">PLAYGROUND <span>01 — 04</span></div>
+    <nav id="strategies" aria-label="Pilih strategi deployment"></nav>
+    <div class="sidebar-note"><span class="tiny-orbit">◎</span><strong>Deploy ≠ release</strong><p>Memasang versi baru belum berarti memindahkan traffic.</p></div>
+    <div class="sidebar-bottom"><span class="status-dot" id="connection-dot"></span><span id="connection">Menghubungkan…</span><button class="icon-button" id="theme-button" aria-label="Ganti tema" title="Ganti tema">◐</button></div>
+  </aside>
+
+  <main>
+    <header class="topbar"><div class="breadcrumb">Building a Custom CI/CD <span>/</span> <strong>Live playground</strong></div><div class="top-actions"><span class="environment"><span class="status-dot"></span>LOCAL / K3D</span><button class="text-button" id="presentation">⛶ <span>Presentasi</span></button></div></header>
+    <section class="hero">
+      <div><div class="eyebrow"><span class="eyebrow-line"></span> DEPLOY TANPA DEG-DEGAN</div><div class="title-row"><h1 id="strategy-title">Rolling update</h1><span class="strategy-number" id="strategy-number">02 / 04</span></div><p class="hero-description" id="strategy-description"></p></div>
+      <div class="hero-actions"><label class="variant-label" for="variant">Skenario</label><select id="variant" aria-label="Pilih skenario"></select><button class="primary-button" id="run-button"><span>▶</span> Jalankan demo</button></div>
+    </section>
+
+    <section class="demo-context" aria-label="Konteks demo">
+      <div><small>PILIHAN ANDA</small><strong id="selected-context">Rolling update</strong></div>
+      <div><small id="run-context-label">DEMO DASHBOARD</small><strong id="run-context">Belum dijalankan</strong></div>
+      <div><small>CLUSTER SAAT INI</small><strong id="live-context">Menghubungkan…</strong></div>
+      <button id="follow-live" class="secondary-button" hidden>Lihat demo aktif</button>
+    </section>
+    <div class="alert" id="alert" role="status" hidden></div>
+    <section class="run-strip" aria-label="Tahap pipeline"><div class="run-indicator"><span class="status-dot" id="run-dot"></span><span id="run-phase">Siap untuk demo</span></div><ol id="pipeline"><li data-step="1">Test</li><li data-step="2">Build</li><li data-step="3">Push</li><li data-step="4">Release</li><li data-step="5">Done</li></ol><span class="run-duration" id="run-duration">—</span></section>
+
+    <section class="stats" aria-label="Metrik traffic langsung">
+      <article class="stat"><div class="stat-label">REQUEST BERHASIL <span class="stat-icon">↗</span></div><div class="stat-value" id="success-value">—<small>%</small></div><div class="stat-detail" id="total-detail">Menunggu request pertama</div><div class="stat-spark" id="success-spark"></div></article>
+      <article class="stat"><div class="stat-label">TRAFFIC MIX <span class="stat-icon">⇄</span></div><div class="mix-value"><span class="version-v1">v1 <b id="v1-value">—%</b></span><span class="mix-divider">/</span><span class="version-v2">v2 <b id="v2-value">—%</b></span></div><div class="mix-bar"><span id="mix-v1"></span><span id="mix-v2"></span><span id="mix-other"></span></div><div class="stat-detail" id="mix-detail">Respons HTTP berhasil · sejak release</div></article>
+      <article class="stat"><div class="stat-label">POD READY <span class="stat-icon">▦</span></div><div class="stat-value"><span id="ready-value">—</span><small id="desired-value"> / —</small></div><div class="stat-detail" id="pod-detail">Kondisi cluster langsung</div></article>
+      <article class="stat"><div class="stat-label">ERROR & JEDA LAYANAN <span class="stat-icon">⌁</span></div><div class="stat-value"><span id="error-value">0</span><small> request</small></div><div class="stat-detail" id="downtime-detail">Jeda terlama <strong>0.0s</strong></div></article>
+    </section>
+
+    <p class="measurement-note" id="measurement-note">Metrik berasal dari sampler dashboard.</p>
+    <section class="topology panel" aria-labelledby="topology-title">
+      <div class="panel-heading"><div><div class="panel-kicker">THE BIG PICTURE</div><h2 id="topology-title">Ke mana traffic mengalir?</h2></div><div class="live-badge"><span class="status-dot"></span><span id="cluster-badge">LIVE TOPOLOGY</span></div></div>
+      <div class="topology-key"><span><i class="key-dot v1"></i>v1 · versi awal</span><span><i class="key-dot v2"></i>v2 · versi baru</span><span><i class="key-dot draining"></i>terminating</span><span class="topology-context" id="topology-context">Cluster lokal · namespace default</span></div>
+      <div class="release-progress"><span id="release-status">Urutan proses</span><ol id="release-steps" aria-label="Urutan release strategi"></ol></div>
+      <div class="network" id="network"><div class="network-empty">Mengambil topologi Kubernetes…</div></div>
+      <div class="narration"><span class="narration-icon">↳</span><p id="narration">Pilih strategi lalu jalankan demo untuk melihat perubahan Pod dan traffic secara langsung.</p><button id="rollback" class="secondary-button" hidden>↶ Rollback</button></div>
+      <p class="diagram-note">Garis dan animasi mengikuti konfigurasi route; angka request berasal dari pengukuran HTTP.</p>
+    </section>
+
+    <section class="lower-grid">
+      <article class="panel traffic-panel"><div class="panel-heading"><div><div class="panel-kicker">EVERY REQUEST TELLS A STORY</div><h2>Traffic dari waktu ke waktu</h2></div><span class="muted mono">90 DETIK TERAKHIR</span></div><div class="chart-legend"><span><i class="key-dot v1"></i>v1</span><span><i class="key-dot v2"></i>v2</span><span><i class="key-dot error"></i>error</span><span class="chart-rate" id="chart-rate">0 req/s</span></div><div class="chart" id="traffic-chart" role="img" aria-label="Grafik request per detik berdasarkan versi"></div><div class="chart-axis"><span>−90s</span><span>−60s</span><span>−30s</span><span>sekarang</span></div><div class="chart-footer"><span>● 6 pengirim request aktif</span><span id="latency">latensi rata-rata —</span></div></article>
+      <article class="panel lesson"><div class="panel-kicker">UNDERSTAND THE STRATEGY</div><h2 id="lesson-title"></h2><p id="lesson-text"></p><div class="lesson-sequence" id="lesson-sequence"></div><div class="lesson-takeaway"><span>↗</span><p id="lesson-takeaway"></p></div></article>
+      <article class="panel canary-panel" id="canary-panel" hidden>
+        <div class="panel-kicker">OBSERVASI PIPELINE · KHUSUS CANARY</div><h2 id="canary-verdict">Menunggu observasi</h2>
+        <div class="canary-numbers"><div><small>SAMPEL CANARY</small><strong id="canary-samples">—</strong></div><div><small>ERROR CANARY</small><strong id="canary-rate">—</strong></div></div>
+        <p id="canary-policy"></p><p id="canary-clock"></p><p id="canary-explanation">Pipeline mengirim request sendiri dan hanya menghitung respons versi canary. Angkanya berbeda dari metrik seluruh traffic di atas.</p>
+      </article>
+    </section>
+
+    <section class="panel activity-panel"><div class="panel-heading"><div><div class="panel-kicker">UNDER THE HOOD</div><h2>Aktivitas langsung</h2></div><div class="segmented" role="tablist" aria-label="Jenis aktivitas"><button role="tab" id="tab-requests" aria-selected="true" aria-controls="requests-content">Request <span id="requests-count">0</span></button><button role="tab" id="tab-logs" aria-selected="false" aria-controls="logs-content">Pipeline log</button></div></div><div id="requests-content" role="tabpanel" aria-labelledby="tab-requests"><div class="request-head"><span>WAKTU</span><span>STATUS</span><span>VERSI</span><span>LATENSI</span></div><div id="request-list" class="request-list"><div class="empty-state">Menunggu traffic…</div></div></div><div id="logs-content" role="tabpanel" aria-labelledby="tab-logs" hidden><div class="log-toolbar"><span id="log-label">Output pipeline akan tampil saat demo dijalankan.</span><label><input type="checkbox" id="follow-logs" checked> Ikuti log</label></div><pre class="logs" id="logs"><span class="muted">$ make &lt;strategi&gt;</span></pre></div></section>
+    <footer><span>deployment lab. <span class="footer-divider">/</span> Lebih mudah dipahami ketika terlihat.</span><span id="updated">Menghubungkan ke cluster…</span></footer>
+  </main>
+  <div class="toast" id="toast" role="alert" hidden></div>
+</body>
+</html>

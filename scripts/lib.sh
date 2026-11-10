@@ -48,7 +48,26 @@ need_cmd() { # need_cmd <binary> <hint instalasi>
 # --- Build path bersama (dipakai pipeline tahap 1–3 dan reset untuk v1) -----
 
 go_test() {
-  (cd "${REPO_DIR}" && go test ./...)
+  # Samakan dengan build Docker: aplikasi ini tidak membutuhkan cgo/libc.
+  (cd "${REPO_DIR}" && CGO_ENABLED=0 go test ./...)
+}
+
+# Machine-readable events for the dashboard, separate from human log text.
+demo_event() {
+  if [ "${DEMO_EVENTS:-0}" = 1 ]; then printf '@@demo %s\n' "$1"; fi
+}
+
+canary_decision() {
+  local samples="$1" errors="$2" minimum="$3" maximum="$4"
+  if [ "${samples}" -eq 0 ]; then
+    echo insufficient-samples
+  elif [ "$(awk -v e="${errors}" -v s="${samples}" -v m="${maximum}" 'BEGIN{print (e/s>m)?1:0}')" = 1 ]; then
+    echo error-rate
+  elif [ "${samples}" -lt "${minimum}" ]; then
+    echo insufficient-samples
+  else
+    echo healthy
+  fi
 }
 
 # build_image <version> — build SEKALI; APP=main|naive memilih program.
@@ -257,7 +276,7 @@ demo_shutdown() {
   stage_done
 
   stage "2/4" "Kaki 1 — naive: docker stop di tengah request /slow"
-  docker run -d --rm --name "${name_naive}" -p "${port}:8080" \
+  docker run -d --name "${name_naive}" -p "${port}:8080" \
     "${REGISTRY_HOST}/app:demo-shutdown-naive" >/dev/null
   wait_http_ok "http://localhost:${port}/healthz" 30
   run_slow_leg "${name_naive}" 10
@@ -271,7 +290,8 @@ demo_shutdown() {
   stage_done
 
   stage "3/4" "Kaki 2 — graceful: request yang sama, dibiarkan selesai"
-  docker run -d --rm --name "${name_graceful}" -p "${port}:8080" \
+  # Simpan container sampai log shutdown selesai dibaca, lalu cleanup di akhir.
+  docker run -d --name "${name_graceful}" -p "${port}:8080" \
     "${REGISTRY_HOST}/app:demo-shutdown-graceful" >/dev/null
   wait_http_ok "http://localhost:${port}/healthz" 30
   run_slow_leg "${name_graceful}" 30

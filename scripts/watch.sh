@@ -22,10 +22,14 @@ C_RESET='\033[0m'; C_BOLD='\033[1m'
 C_RED='\033[1;31m'; C_CYAN='\033[36m'; C_YELLOW='\033[33m'; C_GREY='\033[90m'
 
 now_ms() {
-  local t
-  t="$(date +%s%3N 2>/dev/null)"
-  case "${t}" in *N*|'') t="$(date +%s)000" ;; esac
-  echo "${t}"
+  local t nanos
+  # Potong nanodetik secara eksplisit: sebagian implementasi date tidak
+  # memotong %3N, sehingga timestamp dan perhitungan downtime salah.
+  t="$(date '+%s %N' 2>/dev/null)"
+  case "${t}" in
+    *N*|'') echo "$(date +%s)000" ;;
+    *) nanos="${t#* }"; printf '%s%s\n' "${t%% *}" "${nanos:0:3}" ;;
+  esac
 }
 
 # --- worker: loop curl, append "epoch_ms status versi" ke file bersama ------

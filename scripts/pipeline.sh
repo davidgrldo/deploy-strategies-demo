@@ -45,6 +45,7 @@ need_cmd docker "Docker — instal dan jalankan daemon-nya dulu"
 # Sisanya: downtime nyata — itu poin demo-nya.
 release_recreate() {
   local version="$1" digest="$2"
+  demo_event '{"type":"phase","phase":"replace"}'
   printf "${C_YELLOW}${C_BOLD}⚠ downtime diharapkan${C_RESET}\n"
   echo "  update image Deployment app → digest baru"
   set_image app "${digest}"
@@ -55,6 +56,7 @@ release_recreate() {
 # pod lama turun setelah penggantinya siap — versi tercampur, nol error.
 release_rolling() {
   local version="$1" digest="$2"
+  demo_event '{"type":"phase","phase":"rolling"}'
   echo "  update image Deployment app → digest baru"
   set_image app "${digest}"
   echo "  progres pod:"
@@ -73,15 +75,19 @@ release_bluegreen() {
   if [ "${active}" = "blue" ]; then inactive="green"; else inactive="blue"; fi
 
   echo "  slot aktif: ${active} — deploy ${version} ke slot non-aktif: ${inactive}"
+  demo_event '{"type":"phase","phase":"deploy"}'
   set_image "app-${inactive}" "${digest}"
   scale_workload "app-${inactive}" "${BG_REPLICAS:-3}"
+  demo_event '{"type":"phase","phase":"readiness"}'
   wait_rollout "app-${inactive}"
   printf "${C_CYAN}${C_BOLD}%s siap, belum terima traffic${C_RESET}\n" "${inactive}"
 
   echo "  jeda ${SWITCH_PAUSE:-5}s (SWITCH_PAUSE) — masih sempat batalkan"
+  demo_event '{"type":"phase","phase":"standby"}'
   sleep "${SWITCH_PAUSE:-5}"
 
   echo "  pindahkan traffic: ${active} 0 / ${inactive} 100"
+  demo_event '{"type":"phase","phase":"switch"}'
   set_weights "app-${active}" 0 "app-${inactive}" 100
   printf "${C_BOLD}${C_YELLOW}🔀 SWITCH %s → %s${C_RESET}\n" "${active}" "${inactive}"
   set_active_slot "${inactive}"
@@ -96,6 +102,7 @@ do_bluegreen_rollback() {
   if [ "${active}" = "blue" ]; then inactive="green"; else inactive="blue"; fi
 
   echo "  slot aktif: ${active} — kembalikan traffic ke ${inactive}"
+  demo_event '{"type":"phase","phase":"rollback"}'
   set_weights "app-${active}" 0 "app-${inactive}" 100
   printf "${C_BOLD}${C_YELLOW}🔀 SWITCH %s → %s (rollback, seketika)${C_RESET}\n" "${active}" "${inactive}"
   set_active_slot "${inactive}"
@@ -118,6 +125,7 @@ release_canary() {
   local max_rate="${MAX_ERROR_RATE:-0.01}" min_samples="${MIN_SAMPLES:-20}"
 
   echo "  deploy ${version} ke app-canary (${canary_weight}% traffic setelah siap)"
+  demo_event '{"type":"phase","phase":"deploy"}'
   set_image app-canary "${digest}"
   scale_workload app-canary 1
   if [ -n "${FAIL_RATE:-}" ]; then
@@ -126,16 +134,20 @@ release_canary() {
   else
     kubectl set env deployment/app-canary FAIL_RATE- >/dev/null 2>&1 || true
   fi
+  demo_event '{"type":"phase","phase":"readiness"}'
   wait_rollout app-canary
 
   echo "  set weight: app-stable $((100 - canary_weight)) / app-canary ${canary_weight}"
+  demo_event '{"type":"phase","phase":"split"}'
   set_weights app-stable "$((100 - canary_weight))" app-canary "${canary_weight}"
 
   canary_analyze "${version}" "${observe}" "${max_rate}" "${min_samples}"
   local samples="${CANARY_SAMPLES}" errors="${CANARY_ERRORS}"
-
-  if [ "${samples}" -ge "${min_samples}" ] \
-    && [ "$(awk -v e="${errors}" -v s="${samples}" -v m="${max_rate}" 'BEGIN{print (e/s<=m)?1:0}')" = "1" ]; then
+  local reason
+  reason="$(canary_decision "${samples}" "${errors}" "${min_samples}" "${max_rate}")"
+  demo_event "{\"type\":\"decision\",\"reason\":\"${reason}\"}"
+  if [ "${reason}" = healthy ]; then
+    demo_event '{"type":"phase","phase":"promote"}'
     # promote: update app-stable ke DIGEST YANG SAMA — build cukup sekali
     echo "  promote: app-stable → digest yang sama (tanpa build ulang)"
     set_image app-stable "${digest}"
@@ -144,11 +156,16 @@ release_canary() {
     scale_workload app-canary 0
     printf "${C_GREEN}${C_BOLD}✅ PROMOTED %s → 100%%${C_RESET}\n" "${version}"
   else
+    demo_event '{"type":"phase","phase":"rollback"}'
     set_weights app-stable 100 app-canary 0
     scale_workload app-canary 0
-    printf "${C_BOLD}${C_RED}❌ ROLLBACK: error rate %s%% > %s%%${C_RESET}\n" \
-      "$(awk -v e="${errors}" -v s="${samples}" 'BEGIN{printf "%.1f", (s>0)?(e*100/s):0}')" \
-      "$(awk -v m="${max_rate}" 'BEGIN{printf "%g", m*100}')"
+    if [ "${reason}" = insufficient-samples ]; then
+      printf "${C_BOLD}${C_RED}❌ ROLLBACK: bukti belum cukup (%s/%s sampel canary); versi lama dipertahankan${C_RESET}\n" "${samples}" "${min_samples}"
+    else
+      printf "${C_BOLD}${C_RED}❌ ROLLBACK: error rate %s%% > %s%%${C_RESET}\n" \
+        "$(awk -v e="${errors}" -v s="${samples}" 'BEGIN{printf "%.1f", (s>0)?(e*100/s):0}')" \
+        "$(awk -v m="${max_rate}" 'BEGIN{printf "%g", m*100}')"
+    fi
     exit 1
   fi
 }
@@ -161,6 +178,8 @@ release_canary() {
 canary_analyze() {
   local version="$1" observe="$2" max_rate="$3" min_samples="$4"
   local out stopfile code ver pids="" i elapsed
+  demo_event '{"type":"phase","phase":"observe"}'
+  demo_event "{\"type\":\"canary\",\"samples\":0,\"errors\":0,\"minimum\":${min_samples},\"window\":${observe},\"elapsed\":0,\"maximum\":${max_rate}}"
   out="$(mktemp /tmp/canary.XXXXXX)"
   stopfile="${out}.stop"
   # pengirim berhenti saat file stop muncul — termasuk saat pipeline exit
@@ -189,6 +208,7 @@ canary_analyze() {
     sleep 1
     samples="$(awk -v v="${version}" '$2==v' "${out}" | wc -l | tr -d ' ')"
     errors="$(awk -v v="${version}" '$2==v && $1 !~ /^2/' "${out}" | wc -l | tr -d ' ')"
+    demo_event "{\"type\":\"canary\",\"samples\":${samples},\"errors\":${errors},\"minimum\":${min_samples},\"window\":${observe},\"elapsed\":$((SECONDS - t0)),\"maximum\":${max_rate}}"
     if [ $((SECONDS - last_print)) -ge 10 ]; then
       printf "  ${C_GREY}canary: %s req, %s error (%s%%)${C_RESET}\n" "${samples}" "${errors}" \
         "$(awk -v e="${errors}" -v s="${samples}" 'BEGIN{printf "%.1f", (s>0)?(e*100/s):0}')"

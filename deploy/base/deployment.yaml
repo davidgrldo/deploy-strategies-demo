@@ -14,7 +14,6 @@ metadata:
     app.kubernetes.io/part-of: deploy-strategies-demo
 spec:
   replicas: ${REPLICAS}
-  terminationGracePeriodSeconds: 30 # 5 + 20 = 25 < 30
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -29,6 +28,7 @@ spec:
         app: ${NAME}
         app.kubernetes.io/part-of: deploy-strategies-demo
     spec:
+      terminationGracePeriodSeconds: 30 # 5 + 20 = 25 < 30
       containers:
         - name: app
           image: ${REGISTRY}/app@sha256:${DIGEST}

@@ -4,8 +4,17 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
+
+// Konfigurasi simulasi dari pipeline bukan konfigurasi unit test.
+// Test yang menguji failure menyetel FAIL_RATE sendiri lewat t.Setenv.
+func TestMain(m *testing.M) {
+	os.Setenv("FAIL_RATE", "0")
+	os.Setenv("RESPONSE_DELAY_MS", "0")
+	os.Exit(m.Run())
+}
 
 // get fires a single GET at a fresh server built from newMux() and returns the
 // response with the body still open (close it via body()/io.ReadAll + Close).
